@@ -6,6 +6,10 @@
 */
 
 #include "IoTLCDDisplay.h"
+#include "LCDLanguageSupport.h"
+#ifdef _IOT_REAL_TIME
+#include <TimeLib.h>
+#endif
 
 IoTLCDDisplay::IoTLCDDisplay(uint8_t address, uint8_t cols, uint8_t rows)
     : _lcd(address, cols, rows), _cols(cols), _rows(rows)
@@ -65,3 +69,68 @@ void IoTLCDDisplay::writeChar(uint8_t index)
 {
     _lcd.write(index);
 }
+
+void IoTLCDDisplay::onSystemEvent(const IoTSystemEvent& event)
+{
+    using T = IoTSystemEvent::Type;
+    switch (event.type)
+    {
+        case T::OTA_START:
+            _lastOtaPct = 0xFF;
+            printLine(0, L_LCD_OTA_START_LINE1);
+            printLine(1, L_LCD_OTA_START_LINE2);
+            break;
+
+        case T::OTA_PROGRESS:
+        {
+            uint8_t pct = (event.arg2 > 0)
+                ? (uint8_t)((uint64_t)event.arg1 * 100 / event.arg2) : 0;
+            if (_lastOtaPct == 0xFF || pct == 100 || pct >= _lastOtaPct + 20)
+            {
+                _lastOtaPct = pct;
+                char buf[17];
+                snprintf(buf, sizeof(buf), L_LCD_OTA_PROGRESS_FMT, pct);
+                printLine(1, buf);
+            }
+            break;
+        }
+
+        case T::OTA_END:
+            _lastOtaPct = 0xFF;
+            printLine(0, event.flag ? L_LCD_OTA_END_OK : L_LCD_OTA_END_FAIL);
+            printLine(1, "");
+            break;
+
+        case T::RESTARTING:
+            printLine(0, L_LCD_RESTARTING);
+            printLine(1, "");
+            break;
+
+        default:
+            break;
+    }
+}
+
+#ifdef _IOT_REAL_TIME
+void IoTLCDDisplay::printDateTime()
+{
+    if (timeStatus() == timeNotSet)
+    {
+        printLine(0, "  --:--:--      ");
+        printLine(1, "");
+        return;
+    }
+
+    static const char* const kDayNames[] = { L_LCD_DAY_NAMES };
+    time_t t = now();
+    char line[17];
+
+    snprintf(line, sizeof(line), "    %02d:%02d:%02d    ",
+        hour(t), minute(t), second(t));
+    printLine(0, line);
+
+    snprintf(line, sizeof(line), "%s %02d.%02d.%04d",
+        kDayNames[weekday(t) - 1], day(t), month(t), year(t));
+    printLine(1, line);
+}
+#endif
