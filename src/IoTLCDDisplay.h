@@ -51,6 +51,11 @@ public:
     void setBacklight(bool on) override;
     void createChar(uint8_t index, const uint8_t charmap[8]) override;
     void writeChar(uint8_t index) override;
+    void onSystemEvent(const IoTSystemEvent& event) override;
+
+#ifdef _IOT_REAL_TIME
+    void printDateTime() override;
+#endif
 
     /**
      * @brief Direct access to the underlying LiquidCrystal_I2C for features
@@ -62,4 +67,5 @@ private:
     LiquidCrystal_I2C _lcd;
     uint8_t _cols;
     uint8_t _rows;
+    uint8_t _lastOtaPct = 0xFF;   // 0xFF = sentinel: no progress shown yet
 };
