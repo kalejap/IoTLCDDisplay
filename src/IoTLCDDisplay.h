@@ -1,5 +1,5 @@
 /*
-  IoTLCDDisplay.h - IoTTextDisplay implementation for LiquidCrystal_I2C displays.
+  IoTLCDDisplay.h - IoTTextDisplay adapter for LiquidCrystal_I2C displays.
   Copyright (c) 2024 Peter Kaleja.  All right reserved.
 
   This library is free software; you can redistribute it and/or
@@ -20,52 +20,41 @@
 #pragma once
 
 #include <LiquidCrystal_I2C.h>
-#include "IoTTextDisplay.h"
+#include <IoTLCDDisplayT.h>
+
+/**
+ * @brief IoTLCDDriverTraits specialisation for LiquidCrystal_I2C.
+ *
+ * LiquidCrystal_I2C uses init() (which calls Wire.begin() internally)
+ * instead of begin(cols, rows), and exposes backlight control.
+ * This specialisation must be defined before IoTLCDDisplay is instantiated.
+ */
+template<>
+struct IoTLCDDriverTraits<LiquidCrystal_I2C>
+{
+    static void begin(LiquidCrystal_I2C& lcd, uint8_t /*cols*/, uint8_t /*rows*/)
+    {
+        lcd.init();
+        lcd.backlight();
+    }
+
+    static void setBacklight(LiquidCrystal_I2C& lcd, bool on)
+    {
+        if (on)
+        {
+            lcd.backlight();
+        }
+        else
+        {
+            lcd.noBacklight();
+        }
+    }
+};
 
 /**
  * @brief IoTTextDisplay adapter for LiquidCrystal_I2C (I2C character LCD).
  *
- * Wraps a LiquidCrystal_I2C instance and exposes the IoTTextDisplay interface.
+ * Drop-in replacement for the previous concrete IoTLCDDisplay class.
  * Use lcd() for any LCD-specific features not covered by IoTTextDisplay.
  */
-class IoTLCDDisplay : public IoTTextDisplay
-{
-public:
-    /**
-     * @param address  I2C address of the LCD backpack (typically 0x27 or 0x3F)
-     * @param cols     Number of character columns (e.g. 16)
-     * @param rows     Number of character rows (e.g. 2)
-     */
-    IoTLCDDisplay(uint8_t address, uint8_t cols, uint8_t rows);
-
-    void begin() override;
-    void clear() override;
-    uint8_t cols() const override { return _cols; }
-    uint8_t rows() const override { return _rows; }
-    void setCursor(uint8_t col, uint8_t row) override;
-    using IoTTextDisplay::print;  // un-hide base convenience overloads (e.g. print(String))
-    void print(const char* text) override;
-    void print(const __FlashStringHelper* text) override;
-    void print(int value) override;
-    void print(float value, uint8_t decimals = 1) override;
-    void setBacklight(bool on) override;
-    void createChar(uint8_t index, const uint8_t charmap[8]) override;
-    void writeChar(uint8_t index) override;
-    void onSystemEvent(const IoTSystemEvent& event) override;
-
-#ifdef _IOT_REAL_TIME
-    void printDateTime() override;
-#endif
-
-    /**
-     * @brief Direct access to the underlying LiquidCrystal_I2C for features
-     *        not covered by IoTTextDisplay (e.g. custom blink modes, OLED variant).
-     */
-    LiquidCrystal_I2C& lcd() { return _lcd; }
-
-private:
-    LiquidCrystal_I2C _lcd;
-    uint8_t _cols;
-    uint8_t _rows;
-    uint8_t _lastOtaPct = 0xFF;   // 0xFF = sentinel: no progress shown yet
-};
+using IoTLCDDisplay = IoTLCDDisplayT<LiquidCrystal_I2C>;
